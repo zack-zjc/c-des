@@ -14,7 +14,7 @@
 
 int opr_key(char subkeys[16][6],const char *key,const int seq);
 int opr_data(char *des,const char *src,char subkeys[16][6],const int seq,const int mode);
-int decrypt(char *des,const char *src,const char *key);
+int decrypt(char *des,const char *src,char subkeys[16][6]);
 int decryptdes(char * outdata, long * outlen, const char * indata, const long inlen, const char * key);
 
 int char2bits(char *bits,const char argc);

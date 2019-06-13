@@ -1,9 +1,9 @@
 ﻿#include <stdio.h>
-#include <memory.h>
 #include <stdlib.h>
-#include "DES.h"
+#include <memory.h>
+#include "Des.h"
 
-#define DEBUG 1 
+#define DEBUG 1
 
 const static int IP_K1[56] = {
     56,48,40,32,24,16,8,0,
@@ -139,32 +139,41 @@ int decryptdes(char * outdata, long * outlen, const char *indata,const long inle
         return -1;
     }
 
-
     memset(key1,0x00,sizeof(key1));
     memcpy(key1,key,8);
+
+    char subkeys[16][6];
+    memset(subkeys,0x00,sizeof(subkeys));
+    ret=opr_key(subkeys,key1,0); IF_ERR;
 
     *outlen = 0;
     for(i=0,j=inlen>>3; i<j; ++i,outdata+=8,indata+=8,*outlen+=8)
     {
-        ret = decrypt(outdata, indata,  key1);  IF_ERR;
+        ret = decrypt(outdata, indata, subkeys);  IF_ERR;
     }
 
     outdata-=8;
     i=outdata[7];
+
+    if(i < 0 || i > 8)
+    {
+        printf("not valid decrypt data!\n");
+        return -1;
+    }
+
     memset(outdata+(8-i),0x00,i);
     *outlen-=i;
+    if(*outlen < 0)
+    {
+        printf("cannot decrypt the data!\n");
+        return -1;
+    }
     return ret;
 }
 
-int decrypt(char *des,const char *src,const char *key){
+int decrypt(char *des,const char *src,char subkeys[16][6]){
     int ret=0;
-    char subkeys[16][6];
-
-    memset(subkeys,0x00,sizeof(subkeys));
-
-    ret=opr_key(subkeys,key,0);						IF_ERR;
     ret=opr_data(des,src,subkeys,0,1);		IF_ERR;
-
     return ret;
 }
 

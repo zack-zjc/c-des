@@ -5,6 +5,7 @@
 #include "SecurityFunction.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <ctype.h>
 #include <android/log.h>
@@ -18,77 +19,7 @@
 
 //应用签名的md5值
 const char *APPSIGN = "32a3ff9ef61823348ba996c2f5adb394";
-
-jstring getLoochaJsSign(JNIEnv *env, jobject object, jstring mobile,jstring model, jstring time, jstring type, jstring server_did){
-      isAppSignCorrect(env);
-      const char *mobileStr = env->GetStringUTFChars(mobile, false);
-      const char *modelStr = env->GetStringUTFChars(model, false);
-      const char *timeStr = env->GetStringUTFChars(time, false);
-      const char *typeStr = env->GetStringUTFChars(type, false);
-      const char *server_didStr = env->GetStringUTFChars(server_did, false);
-      char buffer[256];
-      snprintf(buffer,sizeof(buffer),"mobile=%s&model=%s&server_did=%s&time=%s&type=%s",mobileStr,modelStr,server_didStr,timeStr,typeStr);
-      env->ReleaseStringUTFChars(mobile, mobileStr);
-      env->ReleaseStringUTFChars(model, modelStr);
-      env->ReleaseStringUTFChars(time, timeStr);
-      env->ReleaseStringUTFChars(type, typeStr);
-      env->ReleaseStringUTFChars(server_did, server_didStr);
-      MD5 md5 = MD5(buffer);
-      std::string md5Result = md5.hexdigest();
-      return env->NewStringUTF(md5Result.c_str());
-  }
-
-
-jstring getLoochaCommonSign(JNIEnv *env, jobject object, jstring mobile,jstring model,jstring provinceId ,jstring time, jstring type, jstring server_did){
-      isAppSignCorrect(env);
-      const char *mobileStr = env->GetStringUTFChars(mobile, false);
-      const char *modelStr = env->GetStringUTFChars(model, false);
-      const char *provinceIdStr = env->GetStringUTFChars(provinceId, false);
-      const char *timeStr = env->GetStringUTFChars(time, false);
-      const char *typeStr = env->GetStringUTFChars(type, false);
-      const char *server_didStr = env->GetStringUTFChars(server_did, false);
-      char buffer[256];
-      snprintf(buffer,sizeof(buffer),"mobile=%s&model=%s&provinceId=%s&server_did=%s&time=%s&type=%s",mobileStr,modelStr,provinceIdStr,server_didStr,timeStr,typeStr);
-      env->ReleaseStringUTFChars(mobile, mobileStr);
-      env->ReleaseStringUTFChars(model, modelStr);
-      env->ReleaseStringUTFChars(provinceId, provinceIdStr);
-      env->ReleaseStringUTFChars(time, timeStr);
-      env->ReleaseStringUTFChars(type, typeStr);
-      env->ReleaseStringUTFChars(server_did, server_didStr);
-      MD5 md5 = MD5(buffer);
-      std::string md5Result = md5.hexdigest();
-      return env->NewStringUTF(md5Result.c_str());
-  }
-
-
-jstring getLoochaScanSign(JNIEnv *env, jobject object,jstring qrcode, jstring mobile,jstring password){
-      isAppSignCorrect(env);
-      const char *qrcodeStr = env->GetStringUTFChars(qrcode, false);
-      const char *mobileStr = env->GetStringUTFChars(mobile, false);
-      const char *passwordStr = env->GetStringUTFChars(password, false);
-      char buffer[256];
-      snprintf(buffer,sizeof(buffer),"%s&password=%s&mobile=%s",qrcodeStr,passwordStr,mobileStr);
-      env->ReleaseStringUTFChars(qrcode, qrcodeStr);
-      env->ReleaseStringUTFChars(mobile, mobileStr);
-      env->ReleaseStringUTFChars(password, passwordStr);
-      MD5 md5 = MD5(buffer);
-      std::string md5Result = md5.hexdigest();
-      return env->NewStringUTF(md5Result.c_str());
-  }
-
-
-jstring getLoochaXX(JNIEnv *env, jobject object){
-  //最终签名的MD5
-  jstring md5Sign = getAppSign(env);
-  const char * md5SignChar = env->GetStringUTFChars(md5Sign, false);
-  //签名对比
-  int result = strcmp(md5SignChar,APPSIGN);
-  env->ReleaseStringUTFChars(md5Sign, md5SignChar);
-  if(result != 0){
-     exitApplication(env);
-  }
-  return md5Sign;
-}
+long long APP_SHIFT = 0;
 
 /**
 获取签名md5后
@@ -99,15 +30,16 @@ jstring getAppSign(JNIEnv *env){
     MD5 md5 = MD5(signatureChars);
     return  env->NewStringUTF(md5.hexdigest().c_str());
   }
-  return NULL;
+  char * result = "493bda5f2c699ab84332816fe9ff3a23";
+  return env->NewStringUTF(result);
 }
 
 //获取未md5加密应用签名
 const char * getAppUnEncryptSign(JNIEnv* env){
   jobject context;
-  jclass localClass = env->FindClass("android/app/ActivityThread");
+  jclass localClass = env->FindClass("com/realcloud/loochadroid/ApplicationContext");
   if (localClass != NULL){
-      jmethodID getapplication = env->GetStaticMethodID(localClass, "currentApplication", "()Landroid/app/Application;");
+      jmethodID getapplication = env->GetStaticMethodID(localClass, "getNativeContext", "()Landroid/app/Application;");
       if (getapplication != NULL){
           context = env->CallStaticObjectMethod(localClass, getapplication);
           if(context != NULL){
@@ -157,108 +89,19 @@ char* HexStrToByte(const char* source){
 	return result;
 }
 
-//获取时间签名
-const char* getSignTimeEncrypt(JNIEnv *env,const char* time){
-    int timeLength = strlen(time);
-    if(timeLength < 13){
-        LOGE("time=%s",time);
-        return '\0';
-    }
-
-    const char *signatureChars = getAppUnEncryptSign(env);
-    char * signatureCharsStr = HexStrToByte(signatureChars);
-    std::string encoded = base64_encode(reinterpret_cast<const unsigned char*>(signatureCharsStr), strlen(signatureChars)/2);
-
-    const char *keyStore =  encoded.c_str();
-    int keyStoreLength = strlen(keyStore);
-    char * index = (char*) malloc (sizeof(char)*(4+1));
-    strncpy(index, time+3, 4);
-    index[4]='\0';
-    char * len = (char*) malloc (sizeof(char)*(5+1));
-    strncpy(len, time+timeLength-6, 5);
-    len[5]='\0';
-    int indexInt = atoi(index);
-    int lenInt = atoi(len);
-    int start = indexInt % keyStoreLength;
-    int length = lenInt / keyStoreLength;
-    if(length < 8) {
-        length = 8;
-    }
-    if(start + length > keyStoreLength) {
-         start = keyStoreLength - length;
-    }
-    char * result = (char*) malloc (sizeof(char)*(length+1));
-    strncpy(result, keyStore+start, length);
-    result[length]='\0';
-    free(index);
-    free(len);
-    return result;
-}
-
-jstring getLoochaNewSign(JNIEnv *env, jobject object, jstring type, jstring time, jstring path, jstring mobile,
-    jstring server_did, jstring app, jstring model){
-    isAppSignCorrect(env);
-    const char *mobileStr = env->GetStringUTFChars(mobile, false);
-    const char *modelStr = env->GetStringUTFChars(model, false);
-    const char *timeStr = env->GetStringUTFChars(time, false);
-    const char *typeStr = env->GetStringUTFChars(type, false);
-    const char *server_didStr = env->GetStringUTFChars(server_did, false);
-    const char *pathStr = env->GetStringUTFChars(path, false);
-    const char *appStr = env->GetStringUTFChars(app, false);
-    const char *keyStoreStr = getSignTimeEncrypt(env,timeStr);
-    char buffer[512];
-    snprintf(buffer,sizeof(buffer),"app=%s&mobile=%s&model=%s&path=%s&server_did=%s&time=%s&type=%s%s",
-    appStr,mobileStr,modelStr,pathStr,server_didStr,timeStr,typeStr,keyStoreStr);
-    env->ReleaseStringUTFChars(mobile, mobileStr);
-    env->ReleaseStringUTFChars(model, modelStr);
-    env->ReleaseStringUTFChars(time, timeStr);
-    env->ReleaseStringUTFChars(type, typeStr);
-    env->ReleaseStringUTFChars(server_did, server_didStr);
-    env->ReleaseStringUTFChars(path, pathStr);
-    env->ReleaseStringUTFChars(app, appStr);
-    MD5 md5 = MD5(buffer);
-    std::string md5Result = md5.hexdigest();
-    return env->NewStringUTF(md5Result.c_str());
-}
-
-jbyteArray getLoochaDecryptResult(JNIEnv *env, jobject object, jbyteArray encryptData,jstring time){
-     isAppSignCorrect(env);
-     const char *timeStr = env->GetStringUTFChars(time,false);
-     const char *keyStoreStr = getSignTimeEncrypt(env,timeStr);
-     env->ReleaseStringUTFChars(time, timeStr);
-     int encryptDataLength = env->GetArrayLength(encryptData);
-     jbyte * encryptDataBytes = env->GetByteArrayElements(encryptData, 0);
-     char * encryptDataChars = new char[encryptDataLength + 1];
-     memset(encryptDataChars,0,encryptDataLength + 1);
-     memcpy(encryptDataChars, encryptDataBytes, encryptDataLength);
-     encryptDataChars[encryptDataLength] = '\0';
-     env->ReleaseByteArrayElements(encryptData, encryptDataBytes, 0);
-     char * resultData = new char[encryptDataLength + 1];
-     memset(resultData,0,encryptDataLength + 1);
-     long resultDataLength = 0;
-     int flag = decryptdes(resultData,&resultDataLength,encryptDataChars,encryptDataLength,keyStoreStr);
-     if(flag < 0){  //解密失败
-        LOGE("decryptdes --- fail");
-        return NULL;
-     }
-     jbyteArray result = env->NewByteArray(resultDataLength);
-     jbyte *ibyteResult = env->GetByteArrayElements(result,0);
-     memcpy(ibyteResult,resultData,resultDataLength);
-     env->SetByteArrayRegion(result, 0,resultDataLength,ibyteResult);
-     return result;
-}
-
 /**
 验证签名正确性，不正确直接退出应用
 **/
 void isAppSignCorrect(JNIEnv *env){
   //最终签名的MD5
   jstring md5Sign = getAppSign(env);
-  const char * md5SignChar = env->GetStringUTFChars(md5Sign, false);
-  //签名对比
-  int result = strcmp(md5SignChar,APPSIGN);
-  if(result != 0){
-     exitApplication(env);
+  if(md5Sign != NULL){
+    const char * md5SignChar = env->GetStringUTFChars(md5Sign, false);
+      //签名对比
+      int result = strcmp(md5SignChar,APPSIGN);
+      if(result != 0){
+         exitApplication(env);
+      }
   }
 }
 
@@ -270,4 +113,50 @@ void exitApplication(JNIEnv *env){
     jmethodID mid_static_method = env->GetStaticMethodID(temp_clazz,"exit","(I)V");
     env->CallStaticVoidMethod(temp_clazz,mid_static_method,0);
     env->DeleteLocalRef(temp_clazz);
+}
+
+//设置时间签名偏移量
+void setLoochaInfo(JNIEnv *env, jobject jobject, jlong shift){
+    APP_SHIFT = shift;
+    isAppTraced(env);
+    return;
+}
+
+//当前app是否被调试读取TracerPid不为0表示被调试
+void isAppTraced(JNIEnv *env){
+    char *traceStr="TracerPid:";
+    char blank = '\0';
+    char statusFile[100];
+    snprintf(statusFile,sizeof(statusFile),"/proc/%d/status",getpid());
+    FILE * fd = fopen(statusFile,"r");
+    int tracePid = 0;
+    if(fd != NULL){
+       char buffer[50];
+       int continueRead = 1;
+       int size = 0;
+       do{
+         size = fread(buffer, sizeof(char), 50 , fd);
+         if(strstr(buffer,traceStr)){
+            char *subStr = strstr(buffer,traceStr);
+            char * tempStr = (char*) malloc (sizeof(char)*(10+1));
+            strncpy(tempStr, subStr+10, 10);
+            tempStr[11]='\0';
+            for (int i = 0; i < 10; i++){
+               if(tempStr[i] != blank){
+                   char charStr[2];
+                   snprintf(charStr,sizeof(charStr),"%c",tempStr[i]);
+                   tracePid = atoi(charStr);
+                   continueRead = 0;
+                   break;
+               }
+            }
+         }
+       }while(continueRead == 1 && size != 0);
+       LOGE("trace=%d",tracePid);
+       fclose(fd);
+    }
+    if(tracePid != 0){ //当前被调试
+        APP_SHIFT = 0;
+       //exitApplication(env);
+    }
 }
